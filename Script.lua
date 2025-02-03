@@ -26,7 +26,14 @@ local Tabs = {
 	Visual = Main:CreateTab("Visual", 118420030502964, Color3.fromRGB(170, 85, 255)),
 	World = Main:CreateTab("World", 76313147188124, Color3.fromRGB(255, 170, 0))
 }
-
+--[[
+local BridgeDuel = {
+	Blink = require(game:GetService("ReplicatedStorage").Blink.Client),
+	Entity = require(game:GetService("ReplicatedStorage").Modules.Entity),
+	BlockPlacementController = require(LocalPlayer.PlayerScripts.Controllers.All.BlockPlacementController),
+	EffectsController = require(game:GetService("Players").LocalPlayer.PlayerScripts.Controllers.All.EffectsController),
+}
+--]]
 local function IsAlive(v)
 	return v and v:FindFirstChildOfClass("Humanoid") and v:FindFirstChild("HumanoidRootPart") and v:FindFirstChildOfClass("Humanoid").Health > 0
 end
@@ -2505,7 +2512,253 @@ spawn(function()
 		end
 	})
 end)
+--[[
+spawn(function()
+	local function Kill(plr)
+		local msg = {
+			plr.Name .. " Haha",
+			plr.Name .. " Im just lagging",
+			"Me when " .. plr.Name .. " tries lime",
+		}
+		return msg[math.random(1, #msg)]
+	end
+	local function Dead(plr)
+		local msg = {
+			plr.Name .. " My lime expires",
+			plr.Name .. " See, i told yall that im legit too!"
+		}
+		return msg[math.random(1, #msg)]
+	end
+	local Loop = nil
+	local Dead, Alive = nil, nil
+	local AutoToxic = Tabs.Player:CreateToggle({
+		Name = "Killsults",
+		Callback = function(callback)
+			if callback then
+				if not Loop then
+					Loop = game:GetService("ReplicatedStorage").Modules.Knit.Services.CombatService.RE.OnKill.OnClientEvent:Connect(function(...)
+						local Args = {...}
+						if BridgeDuel.Entity then
+							if type(Args[1]) == "table" then
+								if Args[1].Id then
+									for i, b in pairs(game:GetService("Players"):GetPlayers()) do
+										if b.Character then
+											local Entity1 = BridgeDuel.Entity.FindByCharacter(b.Character)
+											if Entity1 and Entity1.Id == Args[1].Id then
+												Alive = b
+											end
+										end
+									end
+								end
+							end
+							if type(Args[2]) == "table" then
+								if Args[2].Id then
+									for i, v in pairs(game:GetService("Players"):GetPlayers()) do
+										if v.Character then
+											local Entity2 = BridgeDuel.Entity.FindByCharacter(v.Character)
+											if Entity2 and Entity2.Id == Args[2].Id then
+												Dead = v
+											end
+										end
+									end
+								end
+							end
+						end
+						if Alive.Name == LocalPlayer.Name and Dead.Name ~= LocalPlayer.Name then
+							local KillMessage = Kill(Dead)
+							local args = {
+								[1] = KillMessage,
+								[2] = "All"
+							}
+							game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest"):FireServer(unpack(args))
+						elseif Alive.Name ~= LocalPlayer.Name and Dead.Name == LocalPlayer.Name then
+							local DeadMessage = Dead(Alive)
+							local args = {
+								[1] = DeadMessage,
+								[2] = "All"
+							}
+							game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest"):FireServer(unpack(args))
+						end
+					end)
+				else
+					Loop:Disconnect()
+					Loop = nil
+				end
+			else
+				if Loop then
+					Loop:Disconnect()
+					Loop = nil
+				end
+			end
+		end
+	})
+end)
 
+spawn(function()
+	local OldFall = nil
+	local NoFall = Tabs.Player:CreateToggle({
+		Name = "No Fall",
+		Callback = function(callback)
+			if callback then
+				if BridgeDuel.Blink then
+					if not OldFall then
+						OldFall = hookfunction(BridgeDuel.Blink.player_state.take_fall_damage.fire, function(...)
+						end)
+					end
+				end
+			else
+				if OldFall then
+					hookfunction(BridgeDuel.Blink.player_state.take_fall_damage.fire, OldFall)
+					OldFall = nil
+				end
+			end
+		end
+	})
+end)
+
+spawn(function()
+	local Raycast = RaycastParams.new()
+	Raycast.FilterDescendantsInstances = {LocalPlayer.Character}
+	Raycast.FilterType = Enum.RaycastFilterType.Exclude
+	Raycast.IgnoreWater = true
+
+	local Distance, Selected = nil, nil
+	local Direction, Result = nil, nil
+	local Pickaxe, Bed = nil, nil
+	local IsBreaking = false
+	local Blocks = {}
+	local Loop = nil
+	local Breaker = Tabs.World:CreateToggle({
+		Name = "Bed Breaker",
+		Callback = function(callback)
+			if callback then
+				IsBreaking = false
+				if not Loop then
+					Loop = Service.RunService.Stepped:Connect(function()
+						if IsAlive(LocalPlayer.Character) then
+							if BridgeDuel.Blink then
+								Bed = GetBed(Distance)
+								if Bed then
+									Direction = Bed.PrimaryPart.Position - LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position
+									Result = game.Workspace:Raycast(LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position, Direction, Raycast)
+									for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
+										if v:IsA("Tool") and v.Name:match("Pickaxe") then
+											Pickaxe = v
+										end
+									end
+									for i, b in pairs(LocalPlayer.Character:GetChildren()) do
+										if b:IsA("Tool") and b.Name:match("Pickaxe") then
+											Pickaxe = b
+										end
+									end
+									if Selected == "Blatant" then
+										if Pickaxe then
+											if not Bed:FindFirstChildWhichIsA("Highlight") then
+												local highlight = Instance.new("Highlight")
+												highlight.Parent = Bed
+												highlight.FillTransparency = 1
+												highlight.OutlineTransparency = 0.45
+												highlight.OutlineColor = Color3.new(1, 1, 1)
+											end
+											if not IsBreaking then
+												BridgeDuel.Blink.item_action.start_break_block.fire({
+													position = Vector3.new(Bed.PrimaryPart.Position.X, Bed.PrimaryPart.Position.Y, Bed.PrimaryPart.Position.Z),
+													pickaxe_name = Pickaxe.Name,
+												})
+												task.wait(3)
+												IsBreaking = true
+											end
+										end
+									elseif Selected == "Legit" then
+										if Result and Result.Instance then
+											if Result.Instance.Name == "Block" and not table.find(Blocks, Result.Instance) then
+												table.insert(Blocks, Result.Instance)
+												Result.Instance.CanCollide = false
+												Result.Instance.CanTouch = false
+												Result.Instance.CanQuery = false
+												Result.Instance.Transparency = 0.75
+											end
+										end
+									end
+								end
+							else
+								if Selected == "Legit" then
+									for i = #Blocks, 1, -1 do
+										local v = Blocks[i]
+										if v and v.Parent and not v.CanCollide and not v.CanTouch and not v.CanQuery and v.Transparency ~= 0 then
+											local Distances = (v.Position - LocalPlayer.Character:FindFirstChild("HumanoidRootPart").Position).Magnitude
+											if Distances > Distance then
+												v.CanCollide = true
+												v.CanTouch = true
+												v.CanQuery = true
+												v.Transparency = 0
+												table.remove(Blocks, i)
+											end
+										end
+									end
+								end
+								if IsBreaking then
+									BridgeDuel.Blink.item_action.stop_break_block.fire()
+									IsBreaking = false
+								end
+							end
+						end
+					end)
+				else
+					Loop:Disconnect()
+					Loop = nil
+				end
+			else
+				if Loop then
+					Loop:Disconnect()
+					Loop = nil
+				end
+				if Bed then
+					if Bed:FindFirstChildWhichIsA("Highlight") then
+						Bed:FindFirstChildWhichIsA("Highlight"):Destroy()
+					else
+						Bed = nil
+					end
+				end
+				Direction, Result = nil, nil
+				IsBreaking = false
+				if Selected == "Legit" then
+					for i, v in ipairs(Blocks) do
+						if v and v.Parent then
+							v.CanCollide = true
+							v.CanTouch = true
+							v.CanQuery = true
+							v.Transparency = 0
+						end
+					end
+					Blocks = {}
+				end
+			end
+		end
+	})
+	local BreakerMode = Breaker:CreateDropdown({
+		Name = "Breaker Modes",
+		List = {"Legit", "Blatant"},
+		Default = "Blatant",
+		Callback = function(callback)
+			if callback then
+				Selected = callback
+			end
+		end
+	})
+	local BreakerDistance = Breaker:CreateSlider({
+		Name = "Distances",
+		Min = 0,
+		Max = 28,
+		Default = 28,
+		Callback = function(callback)
+			if callback then
+				Distance = callback
+			end
+		end
+	})
+end)
+--]]
 spawn(function()
 	local BlockNames = {"Blocks", "WoodPlanksBlock", "StoneBlock", "IronBlock", "BricksBlock", "DiamondBlock"}
 	local BlocksList = {
@@ -2593,6 +2846,62 @@ spawn(function()
 										LocalPlayer.Character.LowerTorso:FindFirstChild("Root").C0 = CFrame.new(OldTorsoC0)
 									end
 								end
+												--[[
+								if not Service.UserInputService.TouchEnabled and Service.UserInputService.KeyboardEnabled and Service.UserInputService.MouseEnabled then
+									if BridgeDuel.BlockPlacementController then
+										for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
+											if table.find(BlockNames, v.Name) then
+												local GetBlockType = BlocksList[v.Name]
+												if GetBlockType then
+													BlockType = GetBlockType
+													Block = v
+													break
+												end
+											end
+										end
+										for i, b in pairs(LocalPlayer.Character:GetChildren()) do
+											if table.find(BlockNames, b.Name) then
+												local GetBlockType = BlocksList[b.Name]
+												if GetBlockType then
+													BlockType = GetBlockType
+													Block = b
+													break
+												end
+											end
+										end
+										if BlockType and Block then
+											BridgeDuel.BlockPlacementController.PlaceBlock(nil, PlacePos, BlockType)
+										end
+									end
+								elseif Service.UserInputService.TouchEnabled and not Service.UserInputService.KeyboardEnabled and not Service.UserInputService.MouseEnabled then
+									if BridgeDuel.Blink then
+										for i, v in pairs(LocalPlayer.Backpack:GetChildren()) do
+											if table.find(BlockNames, v.Name) then
+												local GetBlockType = BlocksList[v.Name]
+												if GetBlockType then
+													BlockType = GetBlockType
+													Block = v
+												end
+											end
+										end
+										for i, b in pairs(LocalPlayer.Character:GetChildren()) do
+											if table.find(BlockNames, b.Name) then
+												local GetBlockType = BlocksList[b.Name]
+												if GetBlockType then
+													BlockType = GetBlockType
+													Block = b
+												end
+											end
+										end
+										if BlockType and Block then
+											BridgeDuel.Blink.item_action.place_block.invoke({
+												position = PlacePos,
+												block_type = BlockType
+											})
+										end
+									end
+								end
+								--]]
 							end
 						end
 					end)
@@ -2683,123 +2992,3 @@ spawn(function()
 end)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-local speaker = game.Players.LocalPlayer
-local swimming = false
-local oldgrav = workspace.Gravity
-local gravReset, swimbeat
-
-local speed = 50  -- Normal movement speed
-local sprintSpeed = 80 -- Speed when holding Shift
-
-spawn(function()
-    LegitFly = Tabs.Move:CreateToggle({
-        Name = "Legit Flight",
-        Callback = function(callback)
-            if callback then
-                if not swimming and speaker and speaker.Character then
-                    local Humanoid = speaker.Character:FindFirstChildWhichIsA("Humanoid")
-                    if not Humanoid then return end
-
-                    oldgrav = workspace.Gravity
-                    workspace.Gravity = 0
-                    swimming = true
-
-                    -- Reset gravity when player dies
-                    gravReset = Humanoid.Died:Connect(function()
-                        workspace.Gravity = oldgrav
-                        swimming = false
-                    end)
-
-                    -- Disable other states except Swimming
-                    local enums = Enum.HumanoidStateType:GetEnumItems()
-                    local noneIndex = table.find(enums, Enum.HumanoidStateType.None)
-                    if noneIndex then table.remove(enums, noneIndex) end
-                    for _, v in pairs(enums) do
-                        Humanoid:SetStateEnabled(v, false)
-                    end
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
-
-                    -- Continuous movement update
-                    swimbeat = RunService.RenderStepped:Connect(function()
-                        local rootPart = speaker.Character and speaker.Character:FindFirstChild("HumanoidRootPart")
-                        if not rootPart then return end
-                        
-                        -- Get camera direction
-                        local cam = workspace.CurrentCamera
-                        local moveDirection = Vector3.new()
-
-                        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                            moveDirection = moveDirection + cam.CFrame.LookVector
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                            moveDirection = moveDirection - cam.CFrame.LookVector
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                            moveDirection = moveDirection - cam.CFrame.RightVector
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                            moveDirection = moveDirection + cam.CFrame.RightVector
-                        end
-
-                        -- Normalize direction and apply speed
-                        if moveDirection.Magnitude > 0 then
-                            moveDirection = moveDirection.Unit * speed
-                        end
-
-                        -- Apply vertical movement
-                        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                            moveDirection = moveDirection + Vector3.new(0, speed, 0) -- Move up
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-                            moveDirection = moveDirection - Vector3.new(0, speed, 0) -- Move down
-                        end
-                        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                            moveDirection = moveDirection - Vector3.new(0, sprintSpeed, 0) -- Move down faster
-                        end
-
-                        -- Update velocity
-                        rootPart.Velocity = moveDirection
-                    end)
-                end
-            else
-                -- Disable flight mode
-                if speaker and speaker.Character then
-                    local Humanoid = speaker.Character:FindFirstChildWhichIsA("Humanoid")
-                    if not Humanoid then return end
-
-                    workspace.Gravity = oldgrav
-                    swimming = false
-
-                    if gravReset then gravReset:Disconnect() end
-                    if swimbeat then
-                        swimbeat:Disconnect()
-                        swimbeat = nil
-                    end
-
-                    -- Re-enable all movement states
-                    local enums = Enum.HumanoidStateType:GetEnumItems()
-                    for _, v in pairs(enums) do
-                        Humanoid:SetStateEnabled(v, true)
-                    end
-                end
-            end
-        end
-    })
-end)
